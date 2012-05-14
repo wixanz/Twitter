@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- Views` title -->
+    <string name="app_name">Twitter</string>
+
+    <!-- TweetList View -->
+    <string name="bSearch">Search</string>
+    <string name="bAddTweet">Add Tweet</string>
+    <string name="search_hint">Search tweet...</string>
+
+    <!-- Home View -->
+    <string name="cd_twitter_logo">Twitter logo</string>
+
+    <!-- CustomTweet View -->
+    <string name="bCancel">Cancel</string>
+    <string name="bTweet">Tweet</string>
+    <string name="etHint">Tweet message...</string>
+    <string name="tvSymbols">Symbols: 140</string>
+</resources>
