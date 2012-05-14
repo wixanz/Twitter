@@ -1,1 +1,17 @@
-Android
+Twitter Client [TEST]
+
+Features:
+ - User autentification without using any browser (via WebView)
+ - Remember last signed username for future easier autentification
+ - Dispaly user`s home timeline
+ - Update status
+ - Search tweets
+ - Pretty scroll to refresh list view by both ways(up - down) from Chris Banes
+ - Images` caching for the better performance
+ - Small optional menu to switch off or exit from app with following preferences cleaning and process killing
+ 
+ Usage:
+ Just implement these two projects and emulate/upload it to your phone to see an effect.
+ 
+ Problems:
+ If you have any errors with attached library, may be, you just need to reconfigure Pull-To-Refresh library path.
