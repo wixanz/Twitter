@@ -1,5 +1,7 @@
 Twitter Client [TEST]
 
+Twitter Client is based on Twitter4j library. All manipulations - authorization, tweeting, search and so on use this library.
+
 Features:
  - User autentification without using any browser (via WebView)
  - Remember last signed username for future easier autentification
