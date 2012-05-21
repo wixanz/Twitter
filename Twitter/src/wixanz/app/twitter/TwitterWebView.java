@@ -33,8 +33,12 @@ public class TwitterWebView extends Activity {
 				if (url.startsWith(Constants.OAUTH_CALLBACK_URL)) {
 					Uri uri = Uri.parse(url);
 					String verifier = uri.getQueryParameter("oauth_verifier");
-					intent.putExtra("verifier", verifier);
-					setResult(RESULT_OK, intent);
+					if (verifier != null) {
+						intent.putExtra("verifier", verifier);
+						setResult(RESULT_OK, intent);
+					} else {
+						setResult(RESULT_CANCELED, intent);
+					}
 					TwitterWeb.clearCache(true);
 					finish();
 					return true;
@@ -65,4 +69,12 @@ public class TwitterWebView extends Activity {
 
 	}
 
+	@Override
+	public void onBackPressed() {
+		// TODO Auto-generated method stub
+		super.onBackPressed();
+		Intent i = new Intent(this,Twitter.class);
+		startActivity(i);
+		finish();
+	}
 }

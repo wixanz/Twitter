@@ -1,5 +1,6 @@
 package wixanz.app.twitter;
 
+import java.io.File;
 import java.util.List;
 import com.handmark.pulltorefresh.library.PullToRefreshBase.OnRefreshListener;
 import com.handmark.pulltorefresh.library.PullToRefreshListView;
@@ -16,6 +17,7 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuInflater;
@@ -43,7 +45,7 @@ public class TweetList extends Activity implements OnClickListener, OnRefreshLis
 	twitter4j.Twitter twitter = TwitterHelper.twitter;
 	List<Status> homelines;
 	List<Tweet> tweets = null;;
-	Paging paging;
+	Paging paging = new Paging(i, 10);;
 	boolean search;
 	AlertDialog.Builder builder;
 	AlertDialog alertDialog;
@@ -53,27 +55,31 @@ public class TweetList extends Activity implements OnClickListener, OnRefreshLis
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.tweetlist);
-
-		TwitterHelper.Toast(this, "Congradulations!\n You are signed! Your auth data is saved!");
+		//
+		// TwitterHelper.Toast(this,
+		// "Congradulations!\n You are signed! Your auth data is saved!");
 
 		initializeVars();
 		getHomelines();
 	}
 
 	private void getHomelines() {
-
-		try {
-			paging = new Paging(i, 10);
-			actualListView = pullToRefreshView.getRefreshableView();
-
-			homelines = twitter.getHomeTimeline(paging);
-			// Use our custom adapter for custom refreshable list view
-			homelinesAdapter = new HomelineListAdapter(this, R.layout.customtweetlist, homelines);
-			actualListView.setAdapter(homelinesAdapter);
-
-		} catch (TwitterException e) {
-			e.printStackTrace();
-		}
+		new Thread(new Runnable() {
+			public void run() {
+				try {
+					homelines = twitter.getHomeTimeline(paging);
+					// Use our custom adapter for custom refreshable list view
+					homelinesAdapter = new HomelineListAdapter(TweetList.this, R.layout.customtweetlist, homelines);
+				} catch (TwitterException e) {
+					e.printStackTrace();
+				}
+				actualListView.post(new Runnable() {
+					public void run() {
+						actualListView.setAdapter(homelinesAdapter);
+					}
+				});
+			}
+		}).start();
 	}
 
 	private void initializeVars() {
@@ -84,6 +90,9 @@ public class TweetList extends Activity implements OnClickListener, OnRefreshLis
 		bAddTweet.setOnClickListener(this);
 		bSearchTweet.setOnClickListener(this);
 		pullToRefreshView.setOnRefreshListener(this);
+
+		actualListView = pullToRefreshView.getRefreshableView();
+		tweetListView = pullToRefreshView.getRefreshableView();
 	}
 
 	// Set up our optional menu for exit from app and switch twitter`s account
@@ -97,14 +106,17 @@ public class TweetList extends Activity implements OnClickListener, OnRefreshLis
 		switch (item.getItemId()) {
 		case R.id.switchAccount:
 			if (TwitterHelper.clearOAuthTokens()) {
+				TwitterHelper.DeleteRecursive(ImageManager.cacheDir);
 				Intent i = new Intent(this, Twitter.class);
 				startActivity(i);
 				finish();
 			}
 			break;
 		case R.id.exit:
-			if (TwitterHelper.clearOAuthTokens())
-				System.exit(0);
+			if (TwitterHelper.clearOAuthTokens()) {
+				TwitterHelper.DeleteRecursive(ImageManager.cacheDir);
+				finish();
+			}
 			break;
 		}
 		return false;
@@ -180,19 +192,24 @@ public class TweetList extends Activity implements OnClickListener, OnRefreshLis
 			} else {
 
 				// Search tweets and pass them throughout custom adapter
-				try {
-					search = true;
-					tweetListView = pullToRefreshView.getRefreshableView();
-					tweets = twitter.search(new Query(etAddSearch.getText().toString()).page(i)).getTweets();
+				search = true;
 
-					tweetAdapter = new TweetListAdapter(this, R.layout.customtweetlist, tweets);
-
-					tweetListView.setAdapter(tweetAdapter);
-				} catch (TwitterException e) {
-					e.printStackTrace();
-				}
-
-				tweetAdapter.notifyDataSetChanged();
+				new Thread(new Runnable() {
+					public void run() {
+						try {
+							tweets = twitter.search(new Query(etAddSearch.getText().toString()).page(i)).getTweets();
+							tweetAdapter = new TweetListAdapter(TweetList.this, R.layout.customtweetlist, tweets);
+						} catch (TwitterException e) {
+							e.printStackTrace();
+						}
+						tweetListView.post(new Runnable() {
+							public void run() {
+								tweetListView.setAdapter(tweetAdapter);
+								tweetAdapter.notifyDataSetChanged();
+							}
+						});
+					}
+				}).start();
 
 				// Hide virtual keyboard when search button is pressed
 				inputManager = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
@@ -234,6 +251,7 @@ public class TweetList extends Activity implements OnClickListener, OnRefreshLis
 			i = 1;
 			etAddSearch.clearFocus();
 			etAddSearch.setText("");
+			new GetTweetsTask(this, tweets, etAddSearch.getText().toString(), i, up, homelinesAdapter, pullToRefreshView).cancel(true);
 			getHomelines();
 		} else {
 			super.onBackPressed();

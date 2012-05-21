@@ -6,10 +6,15 @@ import twitter4j.auth.AccessToken;
 import twitter4j.auth.RequestToken;
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.app.Dialog;
 import android.app.ProgressDialog;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.net.ConnectivityManager;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
@@ -19,15 +24,18 @@ import android.view.View.OnClickListener;
 import android.widget.Button;
 
 public class Twitter extends Activity implements OnClickListener {
-
+	
+	private ProgressDialog dialog;
+	private Boolean isConnected;
 	Button bSignIn;
 	private int TWITTER_AUTH;
 	public twitter4j.Twitter twitter;
-	private RequestToken reqTok;
-	SharedPreferences prefs;
+	private RequestToken reqTok = null;;
+	private SharedPreferences prefs;
 	private String accessToken;
 	private String accessTokenSecret;
-	ProgressDialog dialog;
+	private IntentFilter mNetworkStateChangedFilter;
+	private BroadcastReceiver mNetworkStateIntentReceiver;
 	final String TAG = getClass().getName();
 
 	public void onCreate(Bundle savedInstanceState) {
@@ -37,21 +45,24 @@ public class Twitter extends Activity implements OnClickListener {
 		// Initialize variables
 		bSignIn = (Button) findViewById(R.id.bSignIn);
 		bSignIn.setOnClickListener(this);
+
+		mNetworkStateChangedFilter = new IntentFilter();
+		mNetworkStateChangedFilter.addAction(ConnectivityManager.CONNECTIVITY_ACTION);
+
+		mNetworkStateIntentReceiver = new BroadcastReceiver() {
+			@Override
+			public void onReceive(Context context, Intent intent) {
+				if (intent.getAction().equals(ConnectivityManager.CONNECTIVITY_ACTION)) {
+					isConnected = TwitterHelper.isNetworkAccess(context);
+					Log.i(TAG, "Network change:" + String.valueOf(isConnected));
+				}
+			}
+		};
+		registerReceiver(mNetworkStateIntentReceiver, mNetworkStateChangedFilter);
 	}
 
 	public void onClick(View v) {
-		if (TwitterHelper.isNetworkAccess(this)) {
-			dialog = ProgressDialog.show(this, null, "Connecting, please wait...");
-			if (TwitterHelper.isSigned(this)) {
-				// redirect if you are already signed
-				redirect();
-			} else {
-				dialog.dismiss();
-				new Authorization().execute();
-			}
-		} else {
-			TwitterHelper.Toast(this, "Please, connect to Internet!");
-		}
+		new Authorization().execute();
 	}
 
 	private void redirect() {
@@ -60,6 +71,22 @@ public class Twitter extends Activity implements OnClickListener {
 		finish();
 	}
 
+	protected Dialog onCreateDialog(int id)
+	{
+	    String msg, title;
+	    switch (id)
+	    {
+	        case 1:
+	            title = "Connecting to service...";
+	            msg = "Please, wait a second...";
+	            break;
+	        default:
+	            return null;
+	    }
+	    dialog = ProgressDialog.show(this, title, msg, true, true); 
+	    return dialog;
+	}
+	
 	/*
 	 * Getting access tokens to initialize Twitter4j library in future.
 	 * Twitter4j will be used as the mayor tool to manipulate tweets, statuses,
@@ -68,35 +95,44 @@ public class Twitter extends Activity implements OnClickListener {
 	public class Authorization extends AsyncTask<Void, Void, Void> {
 
 		protected void onPreExecute() {
-			dialog = ProgressDialog.show(Twitter.this, null, "Connecting, please wait...");
+			showDialog(1);
 		}
 
 		protected Void doInBackground(Void... params) {
-			if ((accessToken == null) || (accessTokenSecret == null)) {
-				// Getting Twitter4j instance
-				twitter = new TwitterFactory().getInstance();
-				reqTok = null;
+			if (isConnected) {
+				if (!(TwitterHelper.isSigned(Twitter.this))) {
+					if ((accessToken == null) || (accessTokenSecret == null)) {
+						// Getting Twitter4j instance
+						twitter = new TwitterFactory().getInstance();
 
-				// Set key and secret for future requestToken generation
-				twitter.setOAuthConsumer(Constants.CONSUMER_KEY, Constants.CONSUMER_SECRET);
-				try {
-					// Getting requestToken
-					reqTok = twitter.getOAuthRequestToken(Constants.OAUTH_CALLBACK_URL);
-				} catch (TwitterException e) {
-					e.printStackTrace();
+						// Set key and secret for future requestToken generation
+						twitter.setOAuthConsumer(Constants.CONSUMER_KEY, Constants.CONSUMER_SECRET);
+						try {
+							// Getting requestToken
+							reqTok = twitter.getOAuthRequestToken(Constants.OAUTH_CALLBACK_URL);
+						} catch (TwitterException e) {
+							e.printStackTrace();
+						}
+					}
 				}
 			}
 			return null;
 		}
 
 		protected void onPostExecute(Void result) {
-
 			// Go to our WebView with following callback on onActivityResult for
 			// data passing
-			Intent i = new Intent(Twitter.this, TwitterWebView.class);
-			i.putExtra("URL", reqTok.getAuthenticationURL() + "&force_login=true" + TwitterHelper.prefs.getString("screenName", ""));
-			startActivityForResult(i, TWITTER_AUTH);
-			dialog.dismiss();
+			if (isConnected && reqTok != null) {
+				Intent i = new Intent(Twitter.this, TwitterWebView.class);
+				i.putExtra("URL", reqTok.getAuthenticationURL() + "&force_login=true" + TwitterHelper.prefs.getString("screenName", ""));
+				startActivityForResult(i, TWITTER_AUTH);
+			} else if (isConnected && reqTok == null) {
+				// redirect if you are already signed
+				redirect();
+			} else {
+				TwitterHelper.Toast(Twitter.this, "Connection is aborted!");
+			}
+			removeDialog(1);	
 		}
 	}
 
@@ -153,9 +189,18 @@ public class Twitter extends Activity implements OnClickListener {
 			Log.e(TAG, "No Request code comes back from WebView!");
 		}
 	}
+	
+    @Override
+    protected void onResume() {
+	Log.d(TAG, "onResume");
+	super.onResume();
+	registerReceiver(mNetworkStateIntentReceiver, mNetworkStateChangedFilter);
+    }
 
-	// Kill our process
-	public void onBackPressed() {
-		System.exit(0);
-	}
+    @Override
+    protected void onPause() {
+	Log.d(TAG, "onPause");
+	super.onPause();
+	unregisterReceiver(mNetworkStateIntentReceiver);
+    }
 }

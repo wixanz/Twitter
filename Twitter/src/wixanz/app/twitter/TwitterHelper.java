@@ -1,10 +1,13 @@
 package wixanz.app.twitter;
 
+import java.io.File;
+
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.preference.PreferenceManager;
+import android.util.Log;
 import android.widget.Toast;
 import twitter4j.Twitter;
 import twitter4j.TwitterException;
@@ -16,6 +19,8 @@ public class TwitterHelper {
 	static Twitter twitter;
 	static SharedPreferences prefs;
 	static String username;
+	protected static boolean sucess;
+
 
 	public static boolean isSigned(Context context) {
 		prefs = PreferenceManager.getDefaultSharedPreferences(context);
@@ -61,14 +66,23 @@ public class TwitterHelper {
 		editor.commit();
 		return true;
 	}
-
-	public static boolean updateStatus(String msg) {
-		try {
-			twitter.updateStatus(msg);
-		} catch (TwitterException e) {
+	
+	public static boolean updateStatus(final String msg) {
+		new Thread(new Runnable() {
+			public void run() {
+				try {
+					if (twitter.updateStatus(msg) != null)
+						sucess = true;
+				} catch (TwitterException e) {
+				}
+			}
+		}).start();
+		
+		if (sucess) {
+			return true;
+		} else {
 			return false;
 		}
-		return true;
 	}
 
 	// Twitter4j initialization
@@ -78,5 +92,28 @@ public class TwitterHelper {
 		twitter.setOAuthConsumer(Constants.CONSUMER_KEY, Constants.CONSUMER_SECRET);
 		twitter.setOAuthAccessToken(accessToken);
 		return twitter;
+	}
+
+	public static void DeleteRecursive(File cacheDir) {
+		Log.d("DeleteRecursive", "DELETEPREVIOUS TOP" + cacheDir.getPath());
+		if (cacheDir.isDirectory()) {
+			String[] children = cacheDir.list();
+			for (int k = 0; k < children.length; k++) {
+				File temp = new File(cacheDir, children[k]);
+				if (temp.isDirectory()) {
+					Log.d("DeleteRecursive", "Recursive Call" + temp.getPath());
+					DeleteRecursive(temp);
+				} else {
+					Log.d("DeleteRecursive", "Delete File" + temp.getPath() + " Bytes: " + temp.length());
+					boolean b = temp.delete();
+					if (b == false) {
+						Log.d("DeleteRecursive", "DELETE FAIL");
+					}
+				}
+			}
+
+			Log.d("DeleteRecursive", "Folder " + cacheDir.getName() + " is deleted!");
+			cacheDir.delete();
+		}
 	}
 }
